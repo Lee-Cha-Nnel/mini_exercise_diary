@@ -1,5 +1,6 @@
 from PyQt5.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton, 
-                             QComboBox, QLineEdit, QSpinBox, QFrame, QGraphicsDropShadowEffect, QProgressBar, QTableWidget, QTableWidgetItem, QHeaderView, QDateEdit)
+                             QComboBox, QLineEdit, QSpinBox, QFrame, QGraphicsDropShadowEffect, 
+                             QProgressBar, QTableWidget, QTableWidgetItem, QHeaderView, QDateEdit, QMessageBox)
 from PyQt5.QtCore import Qt, pyqtSignal, QDate
 from PyQt5.QtGui import QColor
 
@@ -11,7 +12,7 @@ class DietWindow(QWidget):
     def __init__(self):
         super().__init__()
         self.db = WorkoutDB()
-        # 🎯 내 목표치 설정 (추후 설정창으로 뺄 수 있음)
+        # 🎯 내 목표치 설정
         self.goal_cal = 2500
         self.goal_carbs = 300
         self.goal_pro = 150
@@ -24,12 +25,13 @@ class DietWindow(QWidget):
         main_layout.setContentsMargins(40, 20, 40, 20)
         main_layout.setSpacing(15)
 
-        # 상단 헤더
+        # --- 상단 헤더 (체중 입력창 추가됨) ---
         header_layout = QHBoxLayout()
         self.back_btn = QPushButton("⬅️ 홈으로")
         self.back_btn.setStyleSheet("QPushButton { background: transparent; color: #48BB78; font-weight: bold; font-size: 18px; text-align: left; }")
         self.back_btn.clicked.connect(self.go_back_signal.emit)
         
+        # 날짜 선택기
         self.date_picker = QDateEdit()
         self.date_picker.setDate(QDate.currentDate())
         self.date_picker.setCalendarPopup(True)
@@ -38,23 +40,46 @@ class DietWindow(QWidget):
 
         header_layout.addWidget(self.back_btn)
         header_layout.addStretch()
-        header_layout.addWidget(QLabel("🥗 식단 & 매크로 트래커", styleSheet="font-size: 24px; font-weight: bold; color: #276749;"))
+        
+        # 중앙 타이틀
+        title_lbl = QLabel("🥗 식단 & 매크로 트래커")
+        title_lbl.setStyleSheet("font-size: 24px; font-weight: bold; color: #276749;")
+        header_layout.addWidget(title_lbl)
+        
+        header_layout.addSpacing(40) # 타이틀과 체중 사이 간격
+
+        # ⭐ 오늘의 체중 입력 섹션 (캡틴의 요청 위치!)
+        weight_lbl = QLabel("⚖️ 공복 체중")
+        weight_lbl.setStyleSheet("font-size: 16px; font-weight: bold; color: #4A5568;")
+        self.inp_weight = QLineEdit()
+        self.inp_weight.setPlaceholderText("0.0")
+        self.inp_weight.setFixedWidth(60)
+        self.inp_weight.setStyleSheet("padding: 5px; border-radius: 5px; border: 1px solid #CBD5E0;")
+        self.inp_weight.setAlignment(Qt.AlignCenter)
+        
+        self.btn_weight_save = QPushButton("확인")
+        self.btn_weight_save.setStyleSheet("background-color: #4A5568; color: white; padding: 5px 10px; border-radius: 5px; font-weight: bold;")
+        self.btn_weight_save.clicked.connect(self.save_weight_data)
+
+        header_layout.addWidget(weight_lbl)
+        header_layout.addWidget(self.inp_weight)
+        header_layout.addWidget(self.btn_weight_save)
+
         header_layout.addStretch()
         header_layout.addWidget(self.date_picker)
         main_layout.addLayout(header_layout)
 
-        # 🌟 게이지 바 영역 (경험치)
+        # 🌟 게이지 바 영역
         gauge_card = QFrame()
         gauge_card.setStyleSheet("QFrame { background-color: white; border-radius: 15px; }")
         gauge_card.setGraphicsEffect(self.create_shadow())
         gauge_layout = QVBoxLayout(gauge_card)
         gauge_layout.setContentsMargins(20, 20, 20, 20)
 
-        # 프로그레스 바 생성 함수
-        self.cal_bar = self.create_bar("#ED8936") # 주황 (칼로리)
-        self.carbs_bar = self.create_bar("#4299E1") # 파랑 (탄)
-        self.pro_bar = self.create_bar("#48BB78") # 초록 (단)
-        self.fat_bar = self.create_bar("#ECC94B") # 노랑 (지)
+        self.cal_bar = self.create_bar("#ED8936")
+        self.carbs_bar = self.create_bar("#4299E1")
+        self.pro_bar = self.create_bar("#48BB78")
+        self.fat_bar = self.create_bar("#ECC94B")
 
         self.lbl_cal = QLabel(f"🔥 총 칼로리: 0 / {self.goal_cal} kcal")
         self.lbl_carbs = QLabel(f"🍚 탄수화물: 0 / {self.goal_carbs} g")
@@ -98,10 +123,10 @@ class DietWindow(QWidget):
         input_layout.addWidget(btn_add)
         main_layout.addLayout(input_layout)
 
-        # 먹은 목록 테이블
+        # 테이블
         self.table = QTableWidget(0, 8)
         self.table.setHorizontalHeaderLabels(["ID", "분류", "음식 이름", "칼로리", "탄수화물", "단백질", "지방", "삭제"])
-        self.table.setColumnHidden(0, True) # ID 숨김
+        self.table.setColumnHidden(0, True)
         self.table.horizontalHeader().setSectionResizeMode(2, QHeaderView.Stretch)
         self.table.setStyleSheet("background-color: white; border-radius: 10px;")
         main_layout.addWidget(self.table)
@@ -130,6 +155,16 @@ class DietWindow(QWidget):
         spin.setStyleSheet("padding: 8px; font-size: 14px;")
         return spin
 
+    # --- ⭐ 체중 저장 함수 ---
+    def save_weight_data(self):
+        date = self.date_picker.date().toString("yyyy-MM-dd")
+        try:
+            val = float(self.inp_weight.text())
+            self.db.save_weight(date, val)
+            QMessageBox.information(self, "성공", f"{date} 체중이 저장되었습니다!")
+        except ValueError:
+            QMessageBox.warning(self, "경고", "체중을 숫자로 입력해주세요!")
+
     def add_food(self):
         date = self.date_picker.date().toString("yyyy-MM-dd")
         meal = self.combo_meal.currentText()
@@ -147,8 +182,12 @@ class DietWindow(QWidget):
 
     def load_diet_data(self):
         date = self.date_picker.date().toString("yyyy-MM-dd")
-        records = self.db.get_diet_by_date(date)
         
+        # ⭐ 체중 불러오기 추가
+        weight = self.db.get_weight(date)
+        self.inp_weight.setText(str(weight) if weight > 0 else "")
+
+        records = self.db.get_diet_by_date(date)
         self.table.setRowCount(0)
         tot_cal, tot_carbs, tot_pro, tot_fat = 0, 0, 0, 0
 
@@ -170,7 +209,6 @@ class DietWindow(QWidget):
             del_btn.clicked.connect(lambda _, r=r_id: self.delete_record(r))
             self.table.setCellWidget(row, 7, del_btn)
 
-        # 게이지 바 & 라벨 업데이트 (목표를 넘으면 100%로 고정하되 수치는 진짜로 보여줌)
         self.cal_bar.setValue(int(min(100, (tot_cal / self.goal_cal) * 100)))
         self.carbs_bar.setValue(int(min(100, (tot_carbs / self.goal_carbs) * 100)))
         self.pro_bar.setValue(int(min(100, (tot_pro / self.goal_pro) * 100)))
