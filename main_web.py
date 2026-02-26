@@ -2,7 +2,7 @@ import streamlit as st
 import pandas as pd
 import matplotlib.pyplot as plt
 from datetime import date, timedelta
-from SB_database import WorkoutDB
+from db_supabase import WorkoutDB
 
 # ==========================================
 # 0. 기본 세팅 (화면 및 DB)
@@ -211,4 +211,5 @@ elif page == "⚙️ 설정 및 종목":
         if st.button("삭제하기"):
             db.delete_exercise(del_ex)
             st.warning(f"'{del_ex}' 삭제 완료!")
+
             st.rerun()
