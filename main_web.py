@@ -20,7 +20,7 @@ def get_db():
 db = get_db()
 
 # ==========================================
-# 1. 📱 사이드바 메뉴 (스마트폰 햄버거 메뉴)
+# 1. 📱 사이드바 메뉴
 # ==========================================
 st.sidebar.title("📌 메뉴")
 page = st.sidebar.radio("이동할 탭을 선택하세요:", 
@@ -53,11 +53,10 @@ if page == "💪 운동 일지":
         df = pd.DataFrame(today_records, columns=["종목", "세트", "무게(kg)", "횟수"])
         st.dataframe(df, use_container_width=True, hide_index=True)
         
-        # ⚠️ 삭제 기능 (가장 밑에 추가)
         del_ex = st.selectbox("🗑️ 기록 삭제할 종목 선택", df['종목'].unique())
         if st.button("해당 종목 기록 전체 삭제"):
             db.delete_exercise_records(record_date.strftime("%Y-%m-%d"), del_ex)
-            st.rerun() # 화면 새로고침
+            st.rerun() 
     else:
         st.info("아직 오늘 기록된 운동이 없습니다. 얼른 쇠질하러 가시죠!")
 
@@ -107,22 +106,36 @@ elif page == "📊 심층 분석":
             st.pyplot(fig)
 
 # ==========================================
-# 4. 🥗 식단 트래커 화면 (게이지 바 완벽 구현!)
+# 4. 🥗 식단 트래커 화면 (체중 입력 추가!)
 # ==========================================
 elif page == "🥗 식단 트래커":
     st.title("🥗 식단 & 매크로 트래커")
     
     goal_cal, goal_carbs, goal_pro, goal_fat = 2500, 300, 150, 70
     record_date = st.date_input("📅 날짜 선택", date.today())
-    
+    date_str = record_date.strftime("%Y-%m-%d")
+
+    # ⭐ 체중 기록 섹션 (Expander로 깔끔하게 정리)
+    with st.expander("⚖️ 오늘의 체중 기록", expanded=True):
+        current_weight = db.get_weight(date_str)
+        col_w1, col_w2 = st.columns([3, 1])
+        with col_w1:
+            new_weight = st.number_input("현재 체중 (kg)", value=float(current_weight), step=0.1, format="%.1f")
+        with col_w2:
+            st.write("") # 패딩용
+            st.write("") 
+            if st.button("저장", use_container_width=True):
+                db.save_weight(date_str, new_weight)
+                st.success("완료!")
+                st.rerun()
+
     # DB에서 오늘 먹은 음식 가져오기
-    records = db.get_diet_by_date(record_date.strftime("%Y-%m-%d"))
+    records = db.get_diet_by_date(date_str)
     tot_cal = sum([r[3] for r in records])
     tot_carbs = sum([r[4] for r in records])
     tot_pro = sum([r[5] for r in records])
     tot_fat = sum([r[6] for r in records])
     
-    # 🌟 프로그레스 바 (게이지 차오르는 UI)
     st.subheader("🔥 오늘의 영양 달성도")
     st.write(f"**총 칼로리:** {tot_cal} / {goal_cal} kcal")
     st.progress(min(1.0, tot_cal / goal_cal))
@@ -138,7 +151,6 @@ elif page == "🥗 식단 트래커":
     
     st.divider()
     
-    # 식단 입력 폼
     st.subheader("🍽️ 음식 추가하기")
     col1, col2 = st.columns([1, 2])
     meal_type = col1.selectbox("식사", ["아침", "점심", "저녁", "간식", "보충제"])
@@ -152,13 +164,12 @@ elif page == "🥗 식단 트래커":
     
     if st.button("➕ 식단 추가", use_container_width=True, type="primary"):
         if food_name:
-            db.insert_diet(record_date.strftime("%Y-%m-%d"), meal_type, food_name, cal, carbs, pro, fat)
+            db.insert_diet(date_str, meal_type, food_name, cal, carbs, pro, fat)
             st.success("음식이 추가되었습니다!")
-            st.rerun() # 추가 후 쫙 차오르는 게이지를 위해 새로고침!
+            st.rerun()
         else:
             st.warning("음식 이름을 적어주세요!")
 
-    # 오늘 먹은 목록
     if records:
         df_diet = pd.DataFrame(records, columns=["ID", "식사", "음식명", "칼로리", "탄", "단", "지"]).drop(columns=["ID"])
         st.dataframe(df_diet, use_container_width=True, hide_index=True)
@@ -183,7 +194,7 @@ elif page == "📝 필기 노트":
     for note_id, title in notes:
         with st.expander(f"📌 {title}"):
             full_note = db.get_note_content(note_id)
-            st.write(full_note[1]) # 내용 출력
+            st.write(full_note[1]) 
             if st.button("🗑️ 삭제", key=f"del_{note_id}"):
                 db.delete_note(note_id)
                 st.rerun()
@@ -211,5 +222,4 @@ elif page == "⚙️ 설정 및 종목":
         if st.button("삭제하기"):
             db.delete_exercise(del_ex)
             st.warning(f"'{del_ex}' 삭제 완료!")
-
             st.rerun()
