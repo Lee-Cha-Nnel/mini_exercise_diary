@@ -17,7 +17,6 @@ class WorkoutDB:
 
     def get_records_by_date(self, date):
         response = self.supabase.table("workout_records").select("exercise, set_num, weight, reps").eq("date", date).order("exercise").order("set_num").execute()
-        # 스트림릿 표에 맞게 튜플 리스트로 변환
         return [(item['exercise'], item['set_num'], item['weight'], item['reps']) for item in response.data]
 
     def delete_exercise_records(self, date, exercise):
@@ -28,7 +27,7 @@ class WorkoutDB:
         try:
             self.supabase.table("exercises").insert({"name": name}).execute()
         except Exception:
-            pass # 이미 있는 종목이면 무시
+            pass 
 
     def get_all_exercises(self):
         response = self.supabase.table("exercises").select("name").order("id").execute()
@@ -57,7 +56,7 @@ class WorkoutDB:
     def delete_note(self, note_id):
         self.supabase.table("notes").delete().eq("id", note_id).execute()
 
-    # --- 4. 📊 심층 분석 (클라우드에서 가져와서 파이썬으로 계산!) ---
+    # --- 4. 📊 심층 분석 ---
     def get_volume_and_1rm_trend(self, exercise, start_date, end_date):
         response = self.supabase.table("workout_records").select("date, weight, reps").eq("exercise", exercise).gte("date", start_date).lte("date", end_date).execute()
         
@@ -74,7 +73,6 @@ class WorkoutDB:
             if onerm > trend_data[d]['max_1rm']:
                 trend_data[d]['max_1rm'] = onerm
                 
-        # 날짜순 정렬해서 리턴
         result = []
         for d in sorted(trend_data.keys()):
             result.append((d, trend_data[d]['vol'], trend_data[d]['max_1rm']))
@@ -91,3 +89,16 @@ class WorkoutDB:
 
     def delete_diet(self, record_id):
         self.supabase.table("diet_records").delete().eq("id", record_id).execute()
+
+    # --- ⭐ 6. 오늘의 체중 기능 (방금 추가됨!) ---
+    def save_weight(self, date_str, weight):
+        """날짜별 체중 저장 (이미 있으면 덮어쓰기)"""
+        data = {"date": date_str, "weight": weight}
+        self.supabase.table("body_weight").upsert(data).execute()
+
+    def get_weight(self, date_str):
+        """날짜별 체중 불러오기 (없으면 0.0)"""
+        res = self.supabase.table("body_weight").select("weight").eq("date", date_str).execute()
+        if res.data:
+            return res.data[0]['weight']
+        return 0.0
